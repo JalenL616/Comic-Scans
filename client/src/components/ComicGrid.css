@@ -1,0 +1,23 @@
+.comic-grid-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.comic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 50px;
+  justify-items: center;
+}
+
+@media (max-width: 768px) {
+  .comic-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .comic-grid-container {
+    padding: 10px;
+  }
+}

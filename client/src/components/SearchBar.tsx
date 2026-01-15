@@ -1,30 +1,36 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import './SearchBar.css'
-import { searchComics } from '../services/api';
 
-export function SearchBar() {
-    async function search(formData: FormData) {
-        const query = formData.get("query") as string;
+interface SearchBarProps {
+  onSearch: (upc: string) => Promise<void>;
+}
 
-        try {
-          const comics = await searchComics(query);
-          console.log('Results: ', comics);
-        } catch (error)
-        {
-          console.error('Search failed: ', error)
-        }
+export function SearchBar({ onSearch }: SearchBarProps) {
+  const [upc, setUpc] = useState('');
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (upc.trim()) {
+      await onSearch(upc.trim());
+      setUpc('');
     }
-    return (
-        <form action={search} className="search-form">
-          <label htmlFor="query" className="visually-hidden">
-            Search comics:
-          </label>
-          <input 
-            id="query" 
-            type="text" 
-            name="query" 
-            placeholder="Enter comic UPC"
-          />
-          <button type="submit">Search</button>
-        </form>
-    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="search-form">
+      <label htmlFor="query" className="visually-hidden">
+        Search comics:
+      </label>
+      <input
+        id="query"
+        type="text"
+        name="query"
+        value={upc}
+        onChange={(e) => setUpc(e.target.value)}
+        placeholder="Enter comic UPC"
+      />
+      <button type="submit">Search</button>
+    </form>
+  );
 }
