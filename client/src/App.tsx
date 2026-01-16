@@ -3,7 +3,6 @@ import { SearchBar } from './components/SearchBar'
 import { ComicGrid } from './components/ComicGrid'
 import { searchComics } from './services/api'
 import { FileUpload } from './components/FileUpload'
-import { UserManagement } from './components/AddUser';
 import type { Comic } from './types/comic'
 import './App.css'
 
