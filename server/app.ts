@@ -75,7 +75,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     console.log(`✅ Scanned UPC: ${upc}`);
 
     // Step 2: Look up comic using Metron API
-    const comic = await searchComicByUPC(upc);
+    const comic = await searchComicByUPC(upc + '00111');
     
     if (!comic) {
       res.status(404).json({ error: 'Comic not found', upc });

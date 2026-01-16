@@ -25,9 +25,10 @@ async def scan_upc(image: UploadFile = File(...)):
     try:
         contents = await image.read()
         
-        processed_image = preprocess_image(contents)
         
-        upc = scan_barcode(processed_image)
+        original, enhanced = preprocess_image(contents)
+
+        upc = scan_barcode(original, enhanced)
         
         if not upc:
             raise HTTPException(status_code=400, detail="No barcode found")
