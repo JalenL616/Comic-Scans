@@ -18,16 +18,44 @@ def preprocess_image(image_bytes: bytes) -> tuple[np.ndarray, np.ndarray]:
     cv2.imwrite(str(DEBUG_DIR / "01_original.png"), img)
     print(f"Saved original to {DEBUG_DIR / '01_original.png'}")
 
-    # Try built-in barcode detector first
+    h, w = img.shape[:2]
+    original_area = h * w
+
+    # Try barcode detector on full image first
     cropped = detect_barcode_region(img)
 
-    if cropped is None:
-        print("No barcode region detected, using full image")
-        cropped = img
+    if cropped is not None:
+        crop_h, crop_w = cropped.shape[:2]
+        crop_area = crop_h * crop_w
+        crop_ratio = crop_area / original_area
+        print(f"Detected region is {crop_ratio:.1%} of original")
+
+        # If cropped region is too large (>50% of original), detector probably failed
+        if crop_ratio > 0.5:
+            print("Cropped region too large, trying bottom-left quadrant...")
+            bottom_left = img[h//2:, :w//2]
+            cv2.imwrite(str(DEBUG_DIR / "02a_bottom_left.png"), bottom_left)
+
+            # Try detector on bottom-left
+            bl_cropped = detect_barcode_region(bottom_left)
+            if bl_cropped is not None:
+                cropped = bl_cropped
+            else:
+                # Use bottom-left as-is
+                cropped = bottom_left
+    else:
+        # No detection at all, try bottom-left quadrant
+        print("No barcode detected, trying bottom-left quadrant...")
+        bottom_left = img[h//2:, :w//2]
+        cv2.imwrite(str(DEBUG_DIR / "02a_bottom_left.png"), bottom_left)
+
+        cropped = detect_barcode_region(bottom_left)
+        if cropped is None:
+            cropped = bottom_left
 
     # Save cropped region
-    cv2.imwrite(str(DEBUG_DIR / "02_cropped.png"), cropped)
-    print(f"Saved cropped to {DEBUG_DIR / '02_cropped.png'}")
+    cv2.imwrite(str(DEBUG_DIR / "02b_cropped.png"), cropped)
+    print(f"Saved cropped to {DEBUG_DIR / '02b_cropped.png'}")
 
     enhanced = enhance_image(cropped)
     return cropped, enhanced
