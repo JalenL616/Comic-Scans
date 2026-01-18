@@ -5,8 +5,10 @@ import { ComicGrid } from './components/ComicGrid'
 import { Header } from './components/Header'
 import { searchComics } from './services/api'
 import { FileUpload } from './components/FileUpload'
+import { QRConnect } from './components/QRConnect'
 import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
+import { ScanPage } from './pages/ScanPage'
 import { useAuth } from './context/AuthContext'
 import type { Comic } from './types/comic'
 import './App.css'
@@ -144,6 +146,7 @@ function HomePage() {
       <div className="controls">
         <SearchBar onSearch={handleSearch} />
         <FileUpload onComicFound={handleFileUpload} />
+        <QRConnect onComicReceived={handleFileUpload} />
 
         {comics.length > 0 && (
           <button onClick={handleClearAll} className="clear-button">
@@ -175,6 +178,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/scan/:sessionId" element={<ScanPage />} />
         </Routes>
       </main>
     </div>
