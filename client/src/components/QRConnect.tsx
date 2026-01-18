@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 const CLIENT_URL = import.meta.env.VITE_CLIENT_URL || window.location.origin;
 
 interface QRConnectProps {
-  onComicReceived: (comic: Comic) => void;
+  onComicReceived: (comic: Comic) => boolean; // Returns true if added, false if duplicate
 }
 
 type ConnectionStatus = 'disconnected' | 'waiting' | 'connected';
@@ -53,7 +53,11 @@ export function QRConnect({ onComicReceived }: QRConnectProps) {
 
     newSocket.on('comic-received', (comic: Comic) => {
       console.log('Comic received from phone:', comic);
-      onComicReceivedRef.current(comic);
+      const wasAdded = onComicReceivedRef.current(comic);
+      if (!wasAdded) {
+        // Notify phone that comic was a duplicate
+        newSocket.emit('comic-duplicate', { sessionId: newSessionId, comic });
+      }
     });
 
     newSocket.on('connect_error', (error: Error) => {

@@ -141,12 +141,26 @@ function HomePage() {
     }
   }
 
+  // Returns true if added, false if duplicate (for QR scanning)
+  function handleQRScan(comic: Comic): boolean {
+    const isDuplicate = comics.some(c => c.upc === comic.upc);
+
+    if (isDuplicate) {
+      return false;
+    } else {
+      setComics(prev => [...prev, comic]);
+      setError(null);
+      if (user) saveToCollection(comic);
+      return true;
+    }
+  }
+
   return (
     <>
       <div className="controls">
         <SearchBar onSearch={handleSearch} />
         <FileUpload onComicFound={handleFileUpload} />
-        <QRConnect onComicReceived={handleFileUpload} />
+        <QRConnect onComicReceived={handleQRScan} />
 
         {comics.length > 0 && (
           <button onClick={handleClearAll} className="clear-button">

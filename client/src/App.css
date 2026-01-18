@@ -638,3 +638,151 @@
   font-size: 0.85rem;
   font-weight: 500;
 }
+
+/* Scan Mode Toggle */
+.scan-mode-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.mode-button {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-button.active {
+  background: white;
+  color: #667eea;
+  font-weight: 600;
+}
+
+/* Live Camera */
+.live-camera-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 4/3;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.live-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+}
+
+.scan-indicator.active {
+  border-color: #28a745;
+}
+
+.scan-line {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #28a745, transparent);
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.scan-indicator.active .scan-line {
+  opacity: 1;
+  animation: scanPulse 1s ease-in-out infinite;
+}
+
+@keyframes scanPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.camera-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.start-camera-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 15px 30px;
+  background: white;
+  color: #667eea;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Capture Flash */
+.capture-flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 12px;
+}
+
+.capture-flash.active {
+  animation: flashPulse 0.15s ease-out;
+}
+
+@keyframes flashPulse {
+  0% { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+
+/* Duplicate Comic Styles */
+.scanned-comic.duplicate {
+  border: 2px solid #ffc107;
+}
+
+.scanned-comic-duplicate {
+  margin: 8px 0 0 0;
+  color: #856404;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: #fff3cd;
+  padding: 4px 10px;
+  border-radius: 4px;
+}

@@ -39,6 +39,12 @@ io.on('connection', (socket) => {
     console.log(`Comic sent to session ${sessionId}:`, comic.name)
   })
 
+  // Desktop notifies phone of duplicate
+  socket.on('comic-duplicate', ({ sessionId, comic }) => {
+    io.to(sessionId).emit('duplicate-detected', comic)
+    console.log(`Duplicate comic in session ${sessionId}:`, comic.name)
+  })
+
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id)
     // Clean up sessions for this socket
