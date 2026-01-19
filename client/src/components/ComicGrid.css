@@ -11,6 +11,28 @@
   justify-items: center;
 }
 
+.comic-grid-item {
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.comic-grid-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.comic-grid-item.drag-over {
+  transform: scale(1.02);
+}
+
+.comic-grid-item.drag-over::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px dashed #3b82f6;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
 @media (max-width: 768px) {
   .comic-grid {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

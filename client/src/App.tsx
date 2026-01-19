@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { SearchBar } from './components/SearchBar'
 import { ComicGrid } from './components/ComicGrid'
@@ -14,6 +14,8 @@ import type { Comic } from './types/comic'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+type SortOption = 'custom' | 'a-z' | 'z-a';
 
 function HomePage() {
   const { user, token } = useAuth();
@@ -32,6 +34,7 @@ function HomePage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortOption, setSortOption] = useState<SortOption>('custom');
 
   // Load comics from API if logged in, clear if logged out
   useEffect(() => {
@@ -50,6 +53,31 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem('comics', JSON.stringify(comics));
   }, [comics]);
+
+  // Sort comics based on current option
+  const sortedComics = useMemo(() => {
+    // Always put starred comics first
+    const starred = comics.filter(c => c.starred);
+    const unstarred = comics.filter(c => !c.starred);
+
+    const sortFn = (a: Comic, b: Comic) => {
+      if (sortOption === 'a-z') {
+        const seriesCompare = a.seriesName.localeCompare(b.seriesName);
+        if (seriesCompare !== 0) return seriesCompare;
+        // Same series - sort by issue number ascending
+        return parseFloat(a.issueNumber) - parseFloat(b.issueNumber);
+      } else if (sortOption === 'z-a') {
+        const seriesCompare = b.seriesName.localeCompare(a.seriesName);
+        if (seriesCompare !== 0) return seriesCompare;
+        // Same series - sort by issue number ascending
+        return parseFloat(a.issueNumber) - parseFloat(b.issueNumber);
+      }
+      // Custom order - use sortOrder
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    };
+
+    return [...starred.sort(sortFn), ...unstarred.sort(sortFn)];
+  }, [comics, sortOption]);
 
   async function loadCollection() {
     try {
@@ -93,6 +121,38 @@ function HomePage() {
     }
   }
 
+  async function updateStarred(upc: string, starred: boolean) {
+    if (!token) return;
+    try {
+      await fetch(`${API_URL}/api/collection/${upc}/star`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ starred })
+      });
+    } catch (err) {
+      console.error('Failed to update starred status:', err);
+    }
+  }
+
+  async function updateSortOrder(comicsToUpdate: { upc: string; sortOrder: number }[]) {
+    if (!token) return;
+    try {
+      await fetch(`${API_URL}/api/collection/reorder`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ comics: comicsToUpdate })
+      });
+    } catch (err) {
+      console.error('Failed to update sort order:', err);
+    }
+  }
+
   async function handleSearch(upc: string) {
     setLoading(true);
     setError(null);
@@ -106,8 +166,9 @@ function HomePage() {
         if (isDuplicate) {
           setError('Comic already in results');
         } else {
-          setComics(prev => [...prev, result]);
-          if (user) saveToCollection(result);
+          const newComic = { ...result, sortOrder: comics.length };
+          setComics(prev => [...prev, newComic]);
+          if (user) saveToCollection(newComic);
         }
       } else {
         setError('Comic not found');
@@ -129,16 +190,41 @@ function HomePage() {
     if (user) removeFromCollection(upc);
   }
 
-  function handleFileUpload(comic: Comic) {
-    const isDuplicate = comics.some(c => c.upc === comic.upc);
+  function handleToggleStar(upc: string) {
+    setComics(prev => prev.map(comic => {
+      if (comic.upc === upc) {
+        const newStarred = !comic.starred;
+        if (user) updateStarred(upc, newStarred);
+        return { ...comic, starred: newStarred };
+      }
+      return comic;
+    }));
+  }
 
-    if (isDuplicate) {
-      setError('Comic already in results');
-    } else {
-      setComics(prev => [...prev, comic]);
-      setError(null);
-      if (user) saveToCollection(comic);
+  function handleReorder(reorderedComics: Comic[]) {
+    setComics(reorderedComics);
+    setSortOption('custom'); // Switch to custom when manually reordering
+
+    if (user) {
+      const updates = reorderedComics.map((comic, index) => ({
+        upc: comic.upc,
+        sortOrder: index
+      }));
+      updateSortOrder(updates);
     }
+  }
+
+  function handleFileUpload(comic: Comic) {
+    setComics(prev => {
+      const isDuplicate = prev.some(c => c.upc === comic.upc);
+      if (isDuplicate) {
+        return prev; // Don't add duplicate
+      }
+      const newComic = { ...comic, sortOrder: prev.length };
+      if (user) saveToCollection(newComic);
+      return [...prev, newComic];
+    });
+    setError(null);
   }
 
   // Returns true if added, false if duplicate (for QR scanning)
@@ -148,9 +234,10 @@ function HomePage() {
     if (isDuplicate) {
       return false;
     } else {
-      setComics(prev => [...prev, comic]);
+      const newComic = { ...comic, sortOrder: comics.length };
+      setComics(prev => [...prev, newComic]);
       setError(null);
-      if (user) saveToCollection(comic);
+      if (user) saveToCollection(newComic);
       return true;
     }
   }
@@ -163,16 +250,36 @@ function HomePage() {
         <QRConnect onComicReceived={handleQRScan} />
 
         {comics.length > 0 && (
-          <button onClick={handleClearAll} className="clear-button">
-            Clear All ({comics.length})
-          </button>
+          <div className="controls-row">
+            <div className="sort-controls">
+              <label htmlFor="sort-select">Sort:</label>
+              <select
+                id="sort-select"
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="sort-select"
+              >
+                <option value="custom">Custom Order</option>
+                <option value="a-z">Series A-Z</option>
+                <option value="z-a">Series Z-A</option>
+              </select>
+            </div>
+            <button onClick={handleClearAll} className="clear-button">
+              Clear All ({comics.length})
+            </button>
+          </div>
         )}
       </div>
 
       {loading && <div className="loading">Searching...</div>}
       {error && <div className="error">{error}</div>}
 
-      <ComicGrid comics={comics} onRemoveComic={handleRemoveComic} />
+      <ComicGrid
+        comics={sortedComics}
+        onRemoveComic={handleRemoveComic}
+        onToggleStar={handleToggleStar}
+        onReorder={handleReorder}
+      />
     </>
   );
 }

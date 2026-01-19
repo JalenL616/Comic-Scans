@@ -17,7 +17,7 @@ app.use(cors({
     'https://comic-price-evaluator.vercel.app',
     'https://comic-scans.vercel.app'
   ],
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 

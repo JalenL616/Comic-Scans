@@ -125,6 +125,12 @@ export function ScanPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Ensure video is ready and has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError('Camera not ready. Please try again.');
+      return;
+    }
+
     // Show capture flash
     setIsCapturing(true);
     setTimeout(() => setIsCapturing(false), 200);
@@ -136,7 +142,7 @@ export function ScanPage() {
     // Draw current frame
     ctx.drawImage(video, 0, 0);
 
-    // Convert to blob
+    // Convert to blob with high quality for barcode readability
     canvas.toBlob(async (blob) => {
       if (!blob || !socketRef.current) return;
 
@@ -145,7 +151,7 @@ export function ScanPage() {
 
       try {
         const formData = new FormData();
-        formData.append('image', blob, 'frame.jpg');
+        formData.append('image', blob, 'capture.jpg');
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -176,7 +182,7 @@ export function ScanPage() {
       } finally {
         setIsScanning(false);
       }
-    }, 'image/jpeg', 0.9);
+    }, 'image/jpeg', 0.95);
   }, [sessionId, isScanning]);
 
   function handleDisconnect() {

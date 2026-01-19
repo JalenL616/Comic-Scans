@@ -17,9 +17,43 @@
   font-family: "Comic Sans MS", "Comic Sans", cursive;
 }
 
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sort-controls label {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.sort-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background-color: white;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
 .clear-button {
-  display: block;
-  margin: 20px auto 0;
   padding: 10px 20px;
   background-color: #dc3545;
   color: white;
@@ -79,6 +113,27 @@
   background-color: #28a745;
   border: 2px dashed white;
   transform: scale(1.05);
+}
+
+.upload-button.loading {
+  background-color: #6c757d;
+  cursor: wait;
+}
+
+.cancel-button {
+  padding: 10px 16px;
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.cancel-button:hover {
+  background-color: #dc3545;
+  color: white;
 }
 
 .upload-error {

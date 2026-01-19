@@ -8,4 +8,6 @@ export interface Comic {
   coverImage: string;
   printing: string;
   variantNumber: string;
+  starred?: boolean;
+  sortOrder?: number;
 }

@@ -1,27 +1,44 @@
+import type { Comic } from '../types/comic'
 import './ComicCard.css'
 
 interface ComicCardProps {
-  comic: {
-    name: string;
-    seriesName: string;
-    issueNumber: string;
-    coverImage: string;
-    seriesYear: string;
-  };
+  comic: Comic;
   onRemove: () => void;
+  onToggleStar: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
-export function ComicCard({ comic, onRemove }: ComicCardProps) {
+export function ComicCard({ comic, onRemove, onToggleStar, onDragStart, onDragEnd }: ComicCardProps) {
   return (
-    <div className="comic-card">
-      <button
-        className="remove-button"
-        onClick={onRemove}
-        aria-label="Remove comic"
-        title="Remove this comic"
-      >
-        ×
-      </button>
+    <div
+      className={`comic-card ${comic.starred ? 'starred' : ''}`}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <div className="card-actions">
+        <button
+          className={`star-button ${comic.starred ? 'starred' : ''}`}
+          onClick={onToggleStar}
+          aria-label={comic.starred ? 'Unstar comic' : 'Star comic'}
+          title={comic.starred ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {comic.starred ? '★' : '☆'}
+        </button>
+        <button
+          className="remove-button"
+          onClick={onRemove}
+          aria-label="Remove comic"
+          title="Remove this comic"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="drag-handle" title="Drag to reorder">
+        ⋮⋮
+      </div>
 
       <div className="comic-image-container">
         <img
