@@ -25,9 +25,11 @@ async def scan_upc(image: UploadFile = File(...)):
     try:
         contents = await image.read()
 
-        original, enhanced = preprocess_image(contents)
+        # Returns: (full_original, enhanced_full, cropped_region or None)
+        original, enhanced, cropped = preprocess_image(contents)
 
-        result = scan_barcode(original, enhanced)
+        # Pass all three to scanner - it will try full image first, then cropped as fallback
+        result = scan_barcode(original, enhanced, cropped)
 
         if not result['main']:
             raise HTTPException(status_code=400, detail="No barcode found")

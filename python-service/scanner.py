@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from pyzbar.pyzbar import decode, ZBarSymbol
 from pathlib import Path
+from typing import Optional
 
 # SET TO FALSE FOR PRODUCTION TO REMOVE STALLS
 ENABLE_DEBUG = False
@@ -13,20 +14,15 @@ BARCODE_TYPES = [
 
 def check_image_quality(gray: np.ndarray) -> dict:
     """Quick quality check to detect clearly unreadable images."""
-    # 1. Blur detection using Laplacian variance
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-
-    # 2. Contrast check (standard deviation of pixel values)
     contrast = gray.std()
-
-    # 3. Edge density - barcodes have strong vertical edges
     edges = cv2.Canny(gray, 50, 150)
     edge_density = np.count_nonzero(edges) / edges.size
 
     is_scannable = (
-        laplacian_var > 50 and      # Not too blurry
-        contrast > 20 and            # Has some contrast
-        edge_density > 0.01          # Has some edges
+        laplacian_var > 50 and
+        contrast > 20 and
+        edge_density > 0.01
     )
 
     return {
@@ -41,71 +37,121 @@ def debug_save(name: str, img: np.ndarray):
         DEBUG_DIR.mkdir(exist_ok=True)
         cv2.imwrite(str(DEBUG_DIR / name), img)
 
-def scan_barcode(original: np.ndarray, enhanced: np.ndarray) -> dict:
-    # 1. Prepare Grayscale versions once to save CPU
-    gray_orig = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY) if len(original.shape) == 3 else original
-    gray_enh = enhanced # Already gray from preprocessing
+def scan_barcode(original: np.ndarray, enhanced: np.ndarray, cropped: Optional[np.ndarray] = None) -> dict:
+    """
+    Scan for UPC barcode and 5-digit extension.
 
-    # 2. Quick quality check - skip expensive operations if clearly unreadable
-    quality = check_image_quality(gray_orig)
+    Strategy (prioritizes finding both main + extension):
+    1. TIER 1: Full image, all 4 rotations (best chance for extension)
+    2. TIER 2: Enhanced full image, all 4 rotations
+    3. TIER 3: Fixed thresholds on full image
+    4. TIER 4: If we have a crop, try it (for hard-to-read main barcodes)
+    5. TIER 5: Small angle corrections
+    6. TIER 6: Deep processing (upscale, deskew)
+
+    If main UPC found but no extension, keep trying other methods for extension only.
+    """
+    # Prepare grayscale versions
+    gray_full = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY) if len(original.shape) == 3 else original
+    gray_enhanced = enhanced  # Already grayscale
+
+    # Quality check
+    quality = check_image_quality(gray_full)
     if ENABLE_DEBUG:
-        print(f"Quality: blur={quality['blur_score']:.1f}, contrast={quality['contrast']:.1f}, edges={quality['edge_density']:.4f}, scannable={quality['scannable']}")
+        print(f"Quality: blur={quality['blur_score']:.1f}, contrast={quality['contrast']:.1f}, edges={quality['edge_density']:.4f}")
 
-    # 3. TIER 1: THE FAST PASS (High probability, low CPU)
-    # Try all 4 rotations on raw grayscale first
+    best_result = {'main': None, 'extension': None}
+
+    # === TIER 1: Full image at all 4 rotations (BEST for extension) ===
     for angle in [0, 90, 180, 270]:
-        img = rotate_image(gray_orig, angle)
+        img = rotate_image(gray_full, angle)
         result = try_decode(img)
-        if result['main']:
+        best_result = merge_results(best_result, result)
+        if best_result['main'] and best_result['extension']:
             debug_save(f"success_tier1_rot{angle}.png", img)
-            return result
+            return best_result
 
-    # 4. TIER 2: THE ENHANCED PASS (Medium probability, medium CPU)
-    # Try the CLAHE enhanced version at all rotations
+    # === TIER 2: Enhanced full image at all rotations ===
     for angle in [0, 90, 180, 270]:
-        img = rotate_image(gray_enh, angle)
+        img = rotate_image(gray_enhanced, angle)
         result = try_decode(img)
-        if result['main']:
+        best_result = merge_results(best_result, result)
+        if best_result['main'] and best_result['extension']:
             debug_save(f"success_tier2_rot{angle}.png", img)
-            return result
+            return best_result
 
-    # 4b. TIER 2.5: FIXED THRESHOLDING (catches barcodes Otsu misses)
-    for thresh_val in [140, 160]:
-        _, thresh = cv2.threshold(gray_orig, thresh_val, 255, cv2.THRESH_BINARY)
-        result = try_decode(thresh)
-        if result['main']:
-            debug_save(f"success_tier2b_thresh{thresh_val}.png", thresh)
-            return result
+    # === TIER 3: Fixed thresholds on full image ===
+    for thresh_val in [140, 160, 180]:
+        _, thresh = cv2.threshold(gray_full, thresh_val, 255, cv2.THRESH_BINARY)
+        for angle in [0, 90, 180, 270]:
+            img = rotate_image(thresh, angle)
+            result = try_decode(img)
+            best_result = merge_results(best_result, result)
+            if best_result['main'] and best_result['extension']:
+                debug_save(f"success_tier3_thresh{thresh_val}_rot{angle}.png", img)
+                return best_result
 
-    # === EARLY EXIT: Skip expensive tiers if image is clearly unreadable ===
-    if not quality['scannable']:
+    # === TIER 4: Try cropped region if available (helps with hard-to-read main barcodes) ===
+    if cropped is not None:
+        gray_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY) if len(cropped.shape) == 3 else cropped
+        for angle in [0, 90, 180, 270]:
+            img = rotate_image(gray_crop, angle)
+            result = try_decode(img)
+            best_result = merge_results(best_result, result)
+            if best_result['main'] and best_result['extension']:
+                debug_save(f"success_tier4_crop_rot{angle}.png", img)
+                return best_result
+
+        # Also try enhanced crop
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced_crop = clahe.apply(gray_crop)
+        for angle in [0, 90, 180, 270]:
+            img = rotate_image(enhanced_crop, angle)
+            result = try_decode(img)
+            best_result = merge_results(best_result, result)
+            if best_result['main'] and best_result['extension']:
+                debug_save(f"success_tier4_crop_enh_rot{angle}.png", img)
+                return best_result
+
+    # Early exit if image quality is too low and we still have nothing
+    if not quality['scannable'] and not best_result['main']:
         if ENABLE_DEBUG:
             print("Skipping expensive tiers - image quality too low")
-        return {'main': None, 'extension': None}
+        return best_result
 
-    # 5. TIER 3: SLIGHT ANGLE CORRECTIONS (Common for phone photos)
-    # Try small angle adjustments (-5, -3, 3, 5 degrees)
+    # === TIER 5: Small angle corrections ===
     for small_angle in [-5, -3, 3, 5]:
-        corrected = rotate_by_angle(gray_orig, small_angle)
+        corrected = rotate_by_angle(gray_full, small_angle)
         result = try_decode(corrected)
-        if result['main']:
-            debug_save(f"success_tier3_angle{small_angle}.png", corrected)
-            return result
+        best_result = merge_results(best_result, result)
+        if best_result['main'] and best_result['extension']:
+            debug_save(f"success_tier5_angle{small_angle}.png", corrected)
+            return best_result
 
-    # 6. TIER 4: THE DEEP PASS (Low probability, high CPU)
-    # Upscale/threshold/deskew if basic methods failed
-    for angle in [0, 90]:  # Only 0 and 90 to save time
-        img = rotate_image(gray_orig, angle)
+    # === TIER 6: Deep processing (expensive) ===
+    for angle in [0, 90]:
+        img = rotate_image(gray_full, angle)
 
-        # Upscale and Threshold
+        # Upscale and threshold
         result = upscale_and_clean(img, f"deep_{angle}")
-        if result['main']: return result
+        best_result = merge_results(best_result, result)
+        if best_result['main'] and best_result['extension']:
+            return best_result
 
-        # Deskew (The most expensive operation)
+        # Deskew
         result = deskew_and_decode(img)
-        if result['main']: return result
+        best_result = merge_results(best_result, result)
+        if best_result['main'] and best_result['extension']:
+            return best_result
 
-    return {'main': None, 'extension': None}
+    return best_result
+
+def merge_results(existing: dict, new: dict) -> dict:
+    """Merge two results, keeping any found values."""
+    return {
+        'main': existing['main'] or new['main'],
+        'extension': existing['extension'] or new['extension']
+    }
 
 def rotate_by_angle(img: np.ndarray, angle: float) -> np.ndarray:
     """Rotate image by arbitrary angle (for small corrections)"""
@@ -120,7 +166,6 @@ def rotate_image(img: np.ndarray, angle: int) -> np.ndarray:
     return img
 
 def upscale_and_clean(gray: np.ndarray, prefix: str) -> dict:
-    # Only upscale if image is small; otherwise it's a waste of CPU
     h, w = gray.shape[:2]
     if w < 400:
         scale = 3
@@ -128,24 +173,23 @@ def upscale_and_clean(gray: np.ndarray, prefix: str) -> dict:
     else:
         img = gray
 
-    # Try fixed threshold values first (more reliable than Otsu for some barcodes)
+    # Try fixed threshold values
     for thresh_val in [140, 160, 180, 120]:
         _, thresh = cv2.threshold(img, thresh_val, 255, cv2.THRESH_BINARY)
         result = try_decode(thresh)
         if result['main']:
             return result
 
-    # Otsu Threshold fallback
+    # Otsu threshold fallback
     blurred = cv2.GaussianBlur(img, (3, 3), 0)
     _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     result = try_decode(thresh)
     if not result['main']:
-        # Try Inverse
         result = try_decode(cv2.bitwise_not(thresh))
 
     if not result['main']:
-        # Horizontal blur fallback (Good for motion blur)
+        # Horizontal blur (good for motion blur)
         h_blur = cv2.blur(img, (5, 1))
         _, thresh_h = cv2.threshold(h_blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         result = try_decode(thresh_h)
@@ -153,7 +197,6 @@ def upscale_and_clean(gray: np.ndarray, prefix: str) -> dict:
     return result
 
 def deskew_and_decode(gray: np.ndarray) -> dict:
-    # Use a low-res version to find the angle (much faster)
     small = cv2.resize(gray, (0,0), fx=0.5, fy=0.5)
     edges = cv2.Canny(small, 50, 150)
     lines = cv2.HoughLines(edges, 1, np.pi / 180, 80)
@@ -168,15 +211,14 @@ def deskew_and_decode(gray: np.ndarray) -> dict:
         elif deg > 150: angles.append(deg - 180)
 
     if not angles: return {'main': None, 'extension': None}
-    
+
     median_angle = np.median(angles)
     if abs(median_angle) < 0.5: return {'main': None, 'extension': None}
 
-    # Rotate the original high-res image
     h, w = gray.shape[:2]
     matrix = cv2.getRotationMatrix2D((w//2, h//2), median_angle, 1.0)
     deskewed = cv2.warpAffine(gray, matrix, (w, h), flags=cv2.INTER_LINEAR)
-    
+
     return try_decode(deskewed)
 
 def try_decode(image: np.ndarray) -> dict:
